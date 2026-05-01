@@ -8,6 +8,14 @@ Session.PLAYER_STARTING_MONEY = 1000
 Session.DEALER_STARTING_MONEY = 100000000
 Session.DEFAULT_BET = 100
 Session.BET_STEP = 100
+Session.State = {
+	START = "start",
+	BETTING = "betting",
+	PLAYER_TURN = "playerTurn",
+	RESULT = "result",
+	PLAYER_BANKRUPT = "playerBankrupt",
+	HOUSE_BANKRUPT = "houseBankrupt",
+}
 
 local function getMinimumBet(session)
 	if session.player.money < Session.BET_STEP then
@@ -27,7 +35,7 @@ end
 
 function Session.new()
 	return {
-		state = "start",
+		state = Session.State.START,
 		result = nil,
 		resultReason = nil,
 		bet = Session.DEFAULT_BET,
@@ -80,11 +88,11 @@ local function settle(session, result, reason)
 	end
 
 	if session.player.money <= 0 then
-		session.state = "playerBankrupt"
+		session.state = Session.State.PLAYER_BANKRUPT
 	elseif session.dealer.money <= 0 then
-		session.state = "houseBankrupt"
+		session.state = Session.State.HOUSE_BANKRUPT
 	else
-		session.state = "result"
+		session.state = Session.State.RESULT
 	end
 end
 
@@ -95,9 +103,9 @@ local function settleLossAmount(session, lossAmount, reason)
 	Dealer.addMoney(session.dealer, lossAmount)
 
 	if session.player.money <= 0 then
-		session.state = "playerBankrupt"
+		session.state = Session.State.PLAYER_BANKRUPT
 	else
-		session.state = "result"
+		session.state = Session.State.RESULT
 	end
 end
 
@@ -108,9 +116,9 @@ local function settleWinAmount(session, winAmount, reason)
 	Dealer.addMoney(session.dealer, -winAmount)
 
 	if session.dealer.money <= 0 then
-		session.state = "houseBankrupt"
+		session.state = Session.State.HOUSE_BANKRUPT
 	else
-		session.state = "result"
+		session.state = Session.State.RESULT
 	end
 end
 
@@ -146,7 +154,7 @@ local function getBlackjackPayout(session)
 end
 
 function Session.startBetting(session)
-	session.state = "betting"
+	session.state = Session.State.BETTING
 	session.result = nil
 	session.resultReason = nil
 	session.bet = getMinimumBet(session)
@@ -176,7 +184,7 @@ function Session.deal(session)
 	Player.draw(session.player, Deck.draw(session.deck))
 	Dealer.draw(session.dealer, Deck.draw(session.deck))
 	Dealer.draw(session.dealer, Deck.draw(session.deck))
-	session.state = "playerTurn"
+	session.state = Session.State.PLAYER_TURN
 end
 
 function Session.hit(session)
@@ -188,7 +196,7 @@ function Session.hit(session)
 end
 
 function Session.canSurrender(session)
-	return session.state == "playerTurn" and #session.player.hand == 2
+	return session.state == Session.State.PLAYER_TURN and #session.player.hand == 2
 end
 
 function Session.surrender(session)
@@ -253,7 +261,7 @@ function Session.stand(session)
 end
 
 function Session.reset(session)
-	session.state = "start"
+	session.state = Session.State.START
 	session.result = nil
 	session.resultReason = nil
 	session.bet = Session.DEFAULT_BET

@@ -88,16 +88,67 @@ local function drawBankrupt(width, height, message)
 end
 
 local drawByState = {
-	start = drawStart,
-	betting = drawBetting,
-	playerTurn = drawPlayerTurn,
-	result = drawResult,
-	playerBankrupt = function(width, height)
+	[Session.State.START] = drawStart,
+	[Session.State.BETTING] = drawBetting,
+	[Session.State.PLAYER_TURN] = drawPlayerTurn,
+	[Session.State.RESULT] = drawResult,
+	[Session.State.PLAYER_BANKRUPT] = function(width, height)
 		drawBankrupt(width, height, "Player Bankrupt")
 	end,
-	houseBankrupt = function(width, height)
+	[Session.State.HOUSE_BANKRUPT] = function(width, height)
 		drawBankrupt(width, height, "House Bankrupt")
 	end,
+}
+
+local function isEnter(key)
+	return key == "return" or key == "kpenter"
+end
+
+local function keyPressedStart(key)
+	if isEnter(key) then
+		Session.startBetting(session)
+	end
+end
+
+local function keyPressedBetting(key)
+	if key == "left" or key == "down" then
+		Session.decreaseBet(session)
+	elseif key == "right" or key == "up" then
+		Session.increaseBet(session)
+	elseif isEnter(key) then
+		Session.deal(session)
+	end
+end
+
+local function keyPressedPlayerTurn(key)
+	if key == "h" then
+		Session.hit(session)
+	elseif key == "s" then
+		Session.stand(session)
+	elseif key == "d" then
+		Session.surrender(session)
+	end
+end
+
+local function keyPressedResult(key)
+	if isEnter(key) then
+		Session.startBetting(session)
+	end
+end
+
+local function keyPressedBankrupt(key)
+	if isEnter(key) then
+		Session.reset(session)
+	end
+end
+
+local keyPressedByState = {
+	[Session.State.START] = keyPressedStart,
+	[Session.State.BETTING] = keyPressedBetting,
+	[Session.State.PLAYER_TURN] = keyPressedPlayerTurn,
+	[Session.State.RESULT] = keyPressedResult,
+	[Session.State.PLAYER_BANKRUPT] = keyPressedBankrupt,
+	[Session.State.HOUSE_BANKRUPT] = keyPressedBankrupt,
 }
 
 function love.load()
@@ -125,39 +176,9 @@ function love.draw()
 end
 
 function love.keypressed(key)
-	if session.state == "start" then
-		if key ~= "return" and key ~= "kpenter" then
-			return
-		end
+	local keyPressedState = keyPressedByState[session.state]
 
-		Session.startBetting(session)
-	elseif session.state == "betting" then
-		if key == "left" or key == "down" then
-			Session.decreaseBet(session)
-		elseif key == "right" or key == "up" then
-			Session.increaseBet(session)
-		elseif key == "return" or key == "kpenter" then
-			Session.deal(session)
-		end
-	elseif session.state == "playerTurn" then
-		if key == "h" then
-			Session.hit(session)
-		elseif key == "s" then
-			Session.stand(session)
-		elseif key == "d" then
-			Session.surrender(session)
-		end
-	elseif session.state == "result" then
-		if key ~= "return" and key ~= "kpenter" then
-			return
-		end
-
-		Session.startBetting(session)
-	elseif session.state == "playerBankrupt" or session.state == "houseBankrupt" then
-		if key ~= "return" and key ~= "kpenter" then
-			return
-		end
-
-		Session.reset(session)
+	if keyPressedState then
+		keyPressedState(key)
 	end
 end
