@@ -1,14 +1,19 @@
-local sessionState = "start"
-local sessionResult = nil
+local Session = require("session")
+local session = Session.new()
 
-local function playSession()
-	if love.math.random() < 0.5 then
-		sessionResult = "win"
-	else
-		sessionResult = "lose"
+local function formatWon(amount)
+	local formatted = tostring(amount)
+
+	while true do
+		local changes
+		formatted, changes = formatted:gsub("^(-?%d+)(%d%d%d)", "%1,%2")
+
+		if changes == 0 then
+			break
+		end
 	end
 
-	sessionState = "result"
+	return formatted .. " won"
 end
 
 function love.load()
@@ -25,18 +30,20 @@ function love.draw()
 
 	love.graphics.setColor(1, 1, 1)
 	love.graphics.printf("Jack Black Black Jack", 0, height / 2 - 48, width, "center")
+	love.graphics.printf("Player: " .. formatWon(session.playerMoney), 0, height / 2 - 16, width, "center")
+	love.graphics.printf("Dealer: " .. formatWon(session.dealerMoney), 0, height / 2 + 8, width, "center")
 
-	if sessionState == "start" then
-		love.graphics.printf("Press Enter to Start", 0, height / 2, width, "center")
-	elseif sessionState == "result" then
+	if session.state == "start" then
+		love.graphics.printf("Press Enter to Start", 0, height / 2 + 48, width, "center")
+	elseif session.state == "result" then
 		local message = "You Lose"
 
-		if sessionResult == "win" then
+		if session.result == "win" then
 			message = "You Win"
 		end
 
-		love.graphics.printf(message, 0, height / 2, width, "center")
-		love.graphics.printf("Press Enter to Return", 0, height / 2 + 32, width, "center")
+		love.graphics.printf(message, 0, height / 2 + 48, width, "center")
+		love.graphics.printf("Press Enter to Return", 0, height / 2 + 80, width, "center")
 	end
 end
 
@@ -45,10 +52,9 @@ function love.keypressed(key)
 		return
 	end
 
-	if sessionState == "start" then
-		playSession()
-	elseif sessionState == "result" then
-		sessionState = "start"
-		sessionResult = nil
+	if session.state == "start" then
+		Session.play(session)
+	elseif session.state == "result" then
+		Session.reset(session)
 	end
 end
