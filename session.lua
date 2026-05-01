@@ -27,6 +27,7 @@ function Session.new()
 	return {
 		state = "start",
 		result = nil,
+		resultReason = nil,
 		bet = Session.DEFAULT_BET,
 		deck = nil,
 		playerHand = {},
@@ -66,8 +67,9 @@ function Session.getHandValue(hand)
 	return value
 end
 
-local function settle(session, result)
+local function settle(session, result, reason)
 	session.result = result
+	session.resultReason = reason
 
 	if result == "win" then
 		session.playerMoney = session.playerMoney + session.bet
@@ -89,6 +91,7 @@ end
 function Session.startBetting(session)
 	session.state = "betting"
 	session.result = nil
+	session.resultReason = nil
 	session.bet = getMinimumBet(session)
 	session.deck = Deck.createShuffled()
 	session.playerHand = {}
@@ -127,7 +130,7 @@ function Session.hit(session)
 	table.insert(session.playerHand, Deck.draw(session.deck))
 
 	if Session.getHandValue(session.playerHand) > 21 then
-		settle(session, "lose")
+		settle(session, "lose", "Player busted")
 	end
 end
 
@@ -136,19 +139,20 @@ function Session.stand(session)
 	local dealerValue = Session.getHandValue(session.dealerHand)
 
 	if playerValue > 21 then
-		settle(session, "lose")
+		settle(session, "lose", "Player busted")
 	elseif playerValue > dealerValue or dealerValue > 21 then
-		settle(session, "win")
+		settle(session, "win", "Player score is higher")
 	elseif playerValue < dealerValue then
-		settle(session, "lose")
+		settle(session, "lose", "Dealer score is higher")
 	else
-		settle(session, "push")
+		settle(session, "push", "Player and dealer tied")
 	end
 end
 
 function Session.reset(session)
 	session.state = "start"
 	session.result = nil
+	session.resultReason = nil
 	session.bet = Session.DEFAULT_BET
 	session.deck = nil
 	session.playerHand = {}

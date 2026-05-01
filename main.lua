@@ -36,9 +36,25 @@ local function formatHand(hand)
 	return table.concat(labels, " ")
 end
 
+local function formatVisibleDealerHand(hand)
+	if #hand == 0 then
+		return ""
+	end
+
+	return hand[1].label .. " ??"
+end
+
+local function getVisibleDealerValue(hand)
+	if #hand == 0 then
+		return 0
+	end
+
+	return Session.getHandValue({ hand[1] })
+end
+
 local function drawPlayerTurn(width, height)
-	love.graphics.printf("Dealer: " .. formatHand(session.dealerHand), 0, height / 2 + 40, width, "center")
-	love.graphics.printf("Dealer Score: " .. Session.getHandValue(session.dealerHand), 0, height / 2 + 64, width, "center")
+	love.graphics.printf("Dealer: " .. formatVisibleDealerHand(session.dealerHand), 0, height / 2 + 40, width, "center")
+	love.graphics.printf("Dealer Score: " .. getVisibleDealerValue(session.dealerHand), 0, height / 2 + 64, width, "center")
 	love.graphics.printf("Player: " .. formatHand(session.playerHand), 0, height / 2 + 96, width, "center")
 	love.graphics.printf("Player Score: " .. Session.getHandValue(session.playerHand), 0, height / 2 + 120, width, "center")
 	love.graphics.printf("H: Hit  S: Stand", 0, height / 2 + 152, width, "center")
@@ -53,13 +69,17 @@ local function drawResult(width, height)
 		message = "You Lose"
 	end
 
-	love.graphics.printf(message, 0, height / 2 + 48, width, "center")
-	love.graphics.printf("Press Enter to Continue", 0, height / 2 + 80, width, "center")
+	love.graphics.printf(message, 0, height / 2 + 32, width, "center")
+	love.graphics.printf(session.resultReason or "", 0, height / 2 + 56, width, "center")
+	love.graphics.printf("Dealer: " .. formatHand(session.dealerHand) .. " (" .. Session.getHandValue(session.dealerHand) .. ")", 0, height / 2 + 88, width, "center")
+	love.graphics.printf("Player: " .. formatHand(session.playerHand) .. " (" .. Session.getHandValue(session.playerHand) .. ")", 0, height / 2 + 112, width, "center")
+	love.graphics.printf("Press Enter to Continue", 0, height / 2 + 144, width, "center")
 end
 
 local function drawBankrupt(width, height, message)
 	love.graphics.printf(message, 0, height / 2 + 48, width, "center")
-	love.graphics.printf("Press Enter to Start New Session", 0, height / 2 + 80, width, "center")
+	love.graphics.printf(session.resultReason or "", 0, height / 2 + 80, width, "center")
+	love.graphics.printf("Press Enter to Start New Session", 0, height / 2 + 112, width, "center")
 end
 
 local drawByState = {
