@@ -16,6 +16,43 @@ local function formatWon(amount)
 	return formatted .. " won"
 end
 
+local function drawStart(width, height)
+	love.graphics.printf("Press Enter to Start", 0, height / 2 + 48, width, "center")
+end
+
+local function drawBetting(width, height)
+	love.graphics.printf("Bet: " .. formatWon(session.bet), 0, height / 2 + 48, width, "center")
+	love.graphics.printf("Press Enter to Bet", 0, height / 2 + 80, width, "center")
+end
+
+local function drawResult(width, height)
+	local message = "You Lose"
+
+	if session.result == "win" then
+		message = "You Win"
+	end
+
+	love.graphics.printf(message, 0, height / 2 + 48, width, "center")
+	love.graphics.printf("Press Enter to Continue", 0, height / 2 + 80, width, "center")
+end
+
+local function drawBankrupt(width, height, message)
+	love.graphics.printf(message, 0, height / 2 + 48, width, "center")
+	love.graphics.printf("Press Enter to Start New Session", 0, height / 2 + 80, width, "center")
+end
+
+local drawByState = {
+	start = drawStart,
+	betting = drawBetting,
+	result = drawResult,
+	playerBankrupt = function(width, height)
+		drawBankrupt(width, height, "Player Bankrupt")
+	end,
+	houseBankrupt = function(width, height)
+		drawBankrupt(width, height, "House Bankrupt")
+	end,
+}
+
 function love.load()
 	love.graphics.setBackgroundColor(0.08, 0.1, 0.08)
 end
@@ -33,17 +70,10 @@ function love.draw()
 	love.graphics.printf("Player: " .. formatWon(session.playerMoney), 0, height / 2 - 16, width, "center")
 	love.graphics.printf("Dealer: " .. formatWon(session.dealerMoney), 0, height / 2 + 8, width, "center")
 
-	if session.state == "start" then
-		love.graphics.printf("Press Enter to Start", 0, height / 2 + 48, width, "center")
-	elseif session.state == "result" then
-		local message = "You Lose"
+	local drawState = drawByState[session.state]
 
-		if session.result == "win" then
-			message = "You Win"
-		end
-
-		love.graphics.printf(message, 0, height / 2 + 48, width, "center")
-		love.graphics.printf("Press Enter to Return", 0, height / 2 + 80, width, "center")
+	if drawState then
+		drawState(width, height)
 	end
 end
 
@@ -53,8 +83,12 @@ function love.keypressed(key)
 	end
 
 	if session.state == "start" then
-		Session.play(session)
+		Session.startBetting(session)
+	elseif session.state == "betting" then
+		Session.resolveBet(session)
 	elseif session.state == "result" then
+		Session.startBetting(session)
+	elseif session.state == "playerBankrupt" or session.state == "houseBankrupt" then
 		Session.reset(session)
 	end
 end
