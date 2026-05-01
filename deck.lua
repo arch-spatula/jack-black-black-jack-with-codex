@@ -28,6 +28,10 @@ function Deck.shuffle(deck)
 	return deck
 end
 
+function Deck.draw(deck)
+	return table.remove(deck)
+end
+
 function Deck.createShuffled()
 	return Deck.shuffle(Deck.create())
 end

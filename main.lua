@@ -26,11 +26,31 @@ local function drawBetting(width, height)
 	love.graphics.printf("Press Enter to Bet", 0, height / 2 + 112, width, "center")
 end
 
+local function formatHand(hand)
+	local labels = {}
+
+	for _, card in ipairs(hand) do
+		table.insert(labels, card.label)
+	end
+
+	return table.concat(labels, " ")
+end
+
+local function drawPlayerTurn(width, height)
+	love.graphics.printf("Dealer: " .. formatHand(session.dealerHand), 0, height / 2 + 40, width, "center")
+	love.graphics.printf("Dealer Score: " .. Session.getHandValue(session.dealerHand), 0, height / 2 + 64, width, "center")
+	love.graphics.printf("Player: " .. formatHand(session.playerHand), 0, height / 2 + 96, width, "center")
+	love.graphics.printf("Player Score: " .. Session.getHandValue(session.playerHand), 0, height / 2 + 120, width, "center")
+	love.graphics.printf("H: Hit  S: Stand", 0, height / 2 + 152, width, "center")
+end
+
 local function drawResult(width, height)
-	local message = "You Lose"
+	local message = "Push"
 
 	if session.result == "win" then
 		message = "You Win"
+	elseif session.result == "lose" then
+		message = "You Lose"
 	end
 
 	love.graphics.printf(message, 0, height / 2 + 48, width, "center")
@@ -45,6 +65,7 @@ end
 local drawByState = {
 	start = drawStart,
 	betting = drawBetting,
+	playerTurn = drawPlayerTurn,
 	result = drawResult,
 	playerBankrupt = function(width, height)
 		drawBankrupt(width, height, "Player Bankrupt")
@@ -91,7 +112,13 @@ function love.keypressed(key)
 		elseif key == "right" or key == "up" then
 			Session.increaseBet(session)
 		elseif key == "return" or key == "kpenter" then
-			Session.resolveBet(session)
+			Session.deal(session)
+		end
+	elseif session.state == "playerTurn" then
+		if key == "h" then
+			Session.hit(session)
+		elseif key == "s" then
+			Session.stand(session)
 		end
 	elseif session.state == "result" then
 		if key ~= "return" and key ~= "kpenter" then
