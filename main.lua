@@ -1,6 +1,8 @@
 local Session = require("session")
 local session = Session.new()
 
+---@param amount number
+---@return string
 local function formatWon(amount)
 	local formatted = tostring(amount)
 
@@ -16,6 +18,8 @@ local function formatWon(amount)
 	return formatted .. " won"
 end
 
+---@param width number
+---@param height number
 local function drawStart(width, height)
 	love.graphics.printf("Press Enter to Start", 0, height / 2 + 48, width, "center")
 end
@@ -53,13 +57,35 @@ local function getVisibleDealerValue(hand)
 end
 
 local function drawPlayerTurn(width, height)
-	love.graphics.printf("Dealer: " .. formatVisibleDealerHand(session.dealer.hand), 0, height / 2 + 40, width, "center")
-	love.graphics.printf("Dealer Score: " .. getVisibleDealerValue(session.dealer.hand), 0, height / 2 + 64, width, "center")
+	love.graphics.printf(
+		"Dealer: " .. formatVisibleDealerHand(session.dealer.hand),
+		0,
+		height / 2 + 40,
+		width,
+		"center"
+	)
+	love.graphics.printf(
+		"Dealer Score: " .. getVisibleDealerValue(session.dealer.hand),
+		0,
+		height / 2 + 64,
+		width,
+		"center"
+	)
 	love.graphics.printf("Player: " .. formatHand(session.player.hand), 0, height / 2 + 96, width, "center")
-	love.graphics.printf("Player Score: " .. Session.getHandValue(session.player.hand), 0, height / 2 + 120, width, "center")
+	love.graphics.printf(
+		"Player Score: " .. Session.getHandValue(session.player.hand),
+		0,
+		height / 2 + 120,
+		width,
+		"center"
+	)
 
-	if Session.canSurrender(session) then
-		love.graphics.printf("H: Hit  S: Stand  D: Die", 0, height / 2 + 152, width, "center")
+	if Session.canFold(session) and Session.canDoubleDown(session) then
+		love.graphics.printf("H: Hit  S: Stand  F: Fold  D: Double", 0, height / 2 + 152, width, "center")
+	elseif Session.canFold(session) then
+		love.graphics.printf("H: Hit  S: Stand  F: Fold", 0, height / 2 + 152, width, "center")
+	elseif Session.canDoubleDown(session) then
+		love.graphics.printf("H: Hit  S: Stand  D: Double", 0, height / 2 + 152, width, "center")
 	else
 		love.graphics.printf("H: Hit  S: Stand", 0, height / 2 + 152, width, "center")
 	end
@@ -76,8 +102,20 @@ local function drawResult(width, height)
 
 	love.graphics.printf(message, 0, height / 2 + 32, width, "center")
 	love.graphics.printf(session.resultReason or "", 0, height / 2 + 56, width, "center")
-	love.graphics.printf("Dealer: " .. formatHand(session.dealer.hand) .. " (" .. Session.getHandValue(session.dealer.hand) .. ")", 0, height / 2 + 88, width, "center")
-	love.graphics.printf("Player: " .. formatHand(session.player.hand) .. " (" .. Session.getHandValue(session.player.hand) .. ")", 0, height / 2 + 112, width, "center")
+	love.graphics.printf(
+		"Dealer: " .. formatHand(session.dealer.hand) .. " (" .. Session.getHandValue(session.dealer.hand) .. ")",
+		0,
+		height / 2 + 88,
+		width,
+		"center"
+	)
+	love.graphics.printf(
+		"Player: " .. formatHand(session.player.hand) .. " (" .. Session.getHandValue(session.player.hand) .. ")",
+		0,
+		height / 2 + 112,
+		width,
+		"center"
+	)
 	love.graphics.printf("Press Enter to Continue", 0, height / 2 + 144, width, "center")
 end
 
@@ -125,8 +163,10 @@ local function keyPressedPlayerTurn(key)
 		Session.hit(session)
 	elseif key == "s" then
 		Session.stand(session)
+	elseif key == "f" then
+		Session.fold(session)
 	elseif key == "d" then
-		Session.surrender(session)
+		Session.doubleDown(session)
 	end
 end
 

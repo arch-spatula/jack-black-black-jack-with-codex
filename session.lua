@@ -137,7 +137,7 @@ local function roundToNearestHundredBankers(amount)
 	return (quotient + 1) * Session.BET_STEP
 end
 
-local function getSurrenderRefund(session)
+local function getFoldRefund(session)
 	if session.bet <= Session.BET_STEP then
 		return 0
 	end
@@ -195,28 +195,67 @@ function Session.hit(session)
 	end
 end
 
-function Session.canSurrender(session)
+function Session.canFold(session)
 	return session.state == Session.State.PLAYER_TURN and #session.player.hand == 2
 end
 
-function Session.surrender(session)
-	if not Session.canSurrender(session) then
+function Session.canDoubleDown(session)
+	return session.state == Session.State.PLAYER_TURN
+		and #session.player.hand == 2
+		and session.player.money >= session.bet * 2
+end
+
+function Session.fold(session)
+	if not Session.canFold(session) then
 		return
 	end
 
-	local refund = getSurrenderRefund(session)
+	local refund = getFoldRefund(session)
 	local lossAmount = session.bet - refund
 
 	settleLossAmount(
 		session,
 		lossAmount,
-		"Player surrendered. Refund: " .. refund .. " won"
+		"Player folded. Refund: " .. refund .. " won"
 	)
 end
 
 local function playDealerTurn(session)
 	while Session.getHandValue(session.dealer.hand) <= 16 do
 		Dealer.draw(session.dealer, Deck.draw(session.deck))
+	end
+end
+
+local function settleStand(session, playerValue)
+	playDealerTurn(session)
+
+	local dealerValue = Session.getHandValue(session.dealer.hand)
+
+	if dealerValue > 21 then
+		settle(session, "win", "Dealer busted")
+	elseif playerValue > dealerValue then
+		settle(session, "win", "Player score is higher")
+	elseif playerValue < dealerValue then
+		settle(session, "lose", "Dealer score is higher")
+	else
+		settle(session, "push", "Player and dealer tied")
+	end
+end
+
+function Session.doubleDown(session)
+	if not Session.canDoubleDown(session) then
+		return
+	end
+
+	session.bet = session.bet * 2
+	Player.draw(session.player, Deck.draw(session.deck))
+
+	local playerValue = Session.getHandValue(session.player.hand)
+
+	if playerValue > 21 then
+		settle(session, "lose", "Player busted after double down")
+	else
+		settleStand(session, playerValue)
 	end
 end
 
@@ -245,19 +284,7 @@ function Session.stand(session)
 		return
 	end
 
-	playDealerTurn(session)
-
-	local dealerValue = Session.getHandValue(session.dealer.hand)
-
-	if dealerValue > 21 then
-		settle(session, "win", "Dealer busted")
-	elseif playerValue > dealerValue then
-		settle(session, "win", "Player score is higher")
-	elseif playerValue < dealerValue then
-		settle(session, "lose", "Dealer score is higher")
-	else
-		settle(session, "push", "Player and dealer tied")
-	end
+	settleStand(session, playerValue)
 end
 
 function Session.reset(session)
