@@ -3,6 +3,23 @@ local Session = {}
 Session.PLAYER_STARTING_MONEY = 1000
 Session.DEALER_STARTING_MONEY = 100000000
 Session.DEFAULT_BET = 100
+Session.BET_STEP = 100
+
+local function getMinimumBet(session)
+	if session.playerMoney < Session.BET_STEP then
+		return session.playerMoney
+	end
+
+	return Session.BET_STEP
+end
+
+local function getMaximumBet(session)
+	if session.playerMoney < Session.BET_STEP then
+		return session.playerMoney
+	end
+
+	return session.playerMoney - session.playerMoney % Session.BET_STEP
+end
 
 function Session.new()
 	return {
@@ -17,7 +34,23 @@ end
 function Session.startBetting(session)
 	session.state = "betting"
 	session.result = nil
-	session.bet = Session.DEFAULT_BET
+	session.bet = getMinimumBet(session)
+end
+
+function Session.increaseBet(session)
+	local maximumBet = getMaximumBet(session)
+
+	if session.bet < maximumBet then
+		session.bet = math.min(session.bet + Session.BET_STEP, maximumBet)
+	end
+end
+
+function Session.decreaseBet(session)
+	local minimumBet = getMinimumBet(session)
+
+	if session.bet > minimumBet then
+		session.bet = math.max(session.bet - Session.BET_STEP, minimumBet)
+	end
 end
 
 function Session.resolveBet(session)

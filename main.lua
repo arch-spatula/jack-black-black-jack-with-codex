@@ -22,7 +22,8 @@ end
 
 local function drawBetting(width, height)
 	love.graphics.printf("Bet: " .. formatWon(session.bet), 0, height / 2 + 48, width, "center")
-	love.graphics.printf("Press Enter to Bet", 0, height / 2 + 80, width, "center")
+	love.graphics.printf("Left/Down: -100  Right/Up: +100", 0, height / 2 + 80, width, "center")
+	love.graphics.printf("Press Enter to Bet", 0, height / 2 + 112, width, "center")
 end
 
 local function drawResult(width, height)
@@ -78,17 +79,31 @@ function love.draw()
 end
 
 function love.keypressed(key)
-	if key ~= "return" and key ~= "kpenter" then
-		return
-	end
-
 	if session.state == "start" then
+		if key ~= "return" and key ~= "kpenter" then
+			return
+		end
+
 		Session.startBetting(session)
 	elseif session.state == "betting" then
-		Session.resolveBet(session)
+		if key == "left" or key == "down" then
+			Session.decreaseBet(session)
+		elseif key == "right" or key == "up" then
+			Session.increaseBet(session)
+		elseif key == "return" or key == "kpenter" then
+			Session.resolveBet(session)
+		end
 	elseif session.state == "result" then
+		if key ~= "return" and key ~= "kpenter" then
+			return
+		end
+
 		Session.startBetting(session)
 	elseif session.state == "playerBankrupt" or session.state == "houseBankrupt" then
+		if key ~= "return" and key ~= "kpenter" then
+			return
+		end
+
 		Session.reset(session)
 	end
 end
