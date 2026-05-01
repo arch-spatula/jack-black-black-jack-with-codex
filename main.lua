@@ -53,10 +53,10 @@ local function getVisibleDealerValue(hand)
 end
 
 local function drawPlayerTurn(width, height)
-	love.graphics.printf("Dealer: " .. formatVisibleDealerHand(session.dealerHand), 0, height / 2 + 40, width, "center")
-	love.graphics.printf("Dealer Score: " .. getVisibleDealerValue(session.dealerHand), 0, height / 2 + 64, width, "center")
-	love.graphics.printf("Player: " .. formatHand(session.playerHand), 0, height / 2 + 96, width, "center")
-	love.graphics.printf("Player Score: " .. Session.getHandValue(session.playerHand), 0, height / 2 + 120, width, "center")
+	love.graphics.printf("Dealer: " .. formatVisibleDealerHand(session.dealer.hand), 0, height / 2 + 40, width, "center")
+	love.graphics.printf("Dealer Score: " .. getVisibleDealerValue(session.dealer.hand), 0, height / 2 + 64, width, "center")
+	love.graphics.printf("Player: " .. formatHand(session.player.hand), 0, height / 2 + 96, width, "center")
+	love.graphics.printf("Player Score: " .. Session.getHandValue(session.player.hand), 0, height / 2 + 120, width, "center")
 
 	if Session.canSurrender(session) then
 		love.graphics.printf("H: Hit  S: Stand  D: Die", 0, height / 2 + 152, width, "center")
@@ -76,8 +76,8 @@ local function drawResult(width, height)
 
 	love.graphics.printf(message, 0, height / 2 + 32, width, "center")
 	love.graphics.printf(session.resultReason or "", 0, height / 2 + 56, width, "center")
-	love.graphics.printf("Dealer: " .. formatHand(session.dealerHand) .. " (" .. Session.getHandValue(session.dealerHand) .. ")", 0, height / 2 + 88, width, "center")
-	love.graphics.printf("Player: " .. formatHand(session.playerHand) .. " (" .. Session.getHandValue(session.playerHand) .. ")", 0, height / 2 + 112, width, "center")
+	love.graphics.printf("Dealer: " .. formatHand(session.dealer.hand) .. " (" .. Session.getHandValue(session.dealer.hand) .. ")", 0, height / 2 + 88, width, "center")
+	love.graphics.printf("Player: " .. formatHand(session.player.hand) .. " (" .. Session.getHandValue(session.player.hand) .. ")", 0, height / 2 + 112, width, "center")
 	love.graphics.printf("Press Enter to Continue", 0, height / 2 + 144, width, "center")
 end
 
@@ -114,8 +114,8 @@ function love.draw()
 
 	love.graphics.setColor(1, 1, 1)
 	love.graphics.printf("Jack Black Black Jack", 0, height / 2 - 48, width, "center")
-	love.graphics.printf("Player: " .. formatWon(session.playerMoney), 0, height / 2 - 16, width, "center")
-	love.graphics.printf("Dealer: " .. formatWon(session.dealerMoney), 0, height / 2 + 8, width, "center")
+	love.graphics.printf("Player: " .. formatWon(session.player.money), 0, height / 2 - 16, width, "center")
+	love.graphics.printf("Dealer: " .. formatWon(session.dealer.money), 0, height / 2 + 8, width, "center")
 
 	local drawState = drawByState[session.state]
 

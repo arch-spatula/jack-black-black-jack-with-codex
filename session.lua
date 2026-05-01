@@ -1,4 +1,6 @@
 local Deck = require("deck")
+local Dealer = require("dealer")
+local Player = require("player")
 
 local Session = {}
 
@@ -8,19 +10,19 @@ Session.DEFAULT_BET = 100
 Session.BET_STEP = 100
 
 local function getMinimumBet(session)
-	if session.playerMoney < Session.BET_STEP then
-		return session.playerMoney
+	if session.player.money < Session.BET_STEP then
+		return session.player.money
 	end
 
 	return Session.BET_STEP
 end
 
 local function getMaximumBet(session)
-	if session.playerMoney < Session.BET_STEP then
-		return session.playerMoney
+	if session.player.money < Session.BET_STEP then
+		return session.player.money
 	end
 
-	return session.playerMoney - session.playerMoney % Session.BET_STEP
+	return session.player.money - session.player.money % Session.BET_STEP
 end
 
 function Session.new()
@@ -30,10 +32,8 @@ function Session.new()
 		resultReason = nil,
 		bet = Session.DEFAULT_BET,
 		deck = nil,
-		playerHand = {},
-		dealerHand = {},
-		playerMoney = Session.PLAYER_STARTING_MONEY,
-		dealerMoney = Session.DEALER_STARTING_MONEY,
+		player = Player.new(Session.PLAYER_STARTING_MONEY),
+		dealer = Dealer.new(Session.DEALER_STARTING_MONEY),
 	}
 end
 
@@ -72,16 +72,16 @@ local function settle(session, result, reason)
 	session.resultReason = reason
 
 	if result == "win" then
-		session.playerMoney = session.playerMoney + session.bet
-		session.dealerMoney = session.dealerMoney - session.bet
+		Player.addMoney(session.player, session.bet)
+		Dealer.addMoney(session.dealer, -session.bet)
 	elseif result == "lose" then
-		session.playerMoney = session.playerMoney - session.bet
-		session.dealerMoney = session.dealerMoney + session.bet
+		Player.addMoney(session.player, -session.bet)
+		Dealer.addMoney(session.dealer, session.bet)
 	end
 
-	if session.playerMoney <= 0 then
+	if session.player.money <= 0 then
 		session.state = "playerBankrupt"
-	elseif session.dealerMoney <= 0 then
+	elseif session.dealer.money <= 0 then
 		session.state = "houseBankrupt"
 	else
 		session.state = "result"
@@ -91,10 +91,10 @@ end
 local function settleLossAmount(session, lossAmount, reason)
 	session.result = "lose"
 	session.resultReason = reason
-	session.playerMoney = session.playerMoney - lossAmount
-	session.dealerMoney = session.dealerMoney + lossAmount
+	Player.addMoney(session.player, -lossAmount)
+	Dealer.addMoney(session.dealer, lossAmount)
 
-	if session.playerMoney <= 0 then
+	if session.player.money <= 0 then
 		session.state = "playerBankrupt"
 	else
 		session.state = "result"
@@ -130,8 +130,8 @@ function Session.startBetting(session)
 	session.resultReason = nil
 	session.bet = getMinimumBet(session)
 	session.deck = Deck.createShuffled()
-	session.playerHand = {}
-	session.dealerHand = {}
+	Player.resetHand(session.player)
+	Dealer.resetHand(session.dealer)
 end
 
 function Session.increaseBet(session)
@@ -151,27 +151,23 @@ function Session.decreaseBet(session)
 end
 
 function Session.deal(session)
-	session.playerHand = {
-		Deck.draw(session.deck),
-		Deck.draw(session.deck),
-	}
-	session.dealerHand = {
-		Deck.draw(session.deck),
-		Deck.draw(session.deck),
-	}
+	Player.draw(session.player, Deck.draw(session.deck))
+	Player.draw(session.player, Deck.draw(session.deck))
+	Dealer.draw(session.dealer, Deck.draw(session.deck))
+	Dealer.draw(session.dealer, Deck.draw(session.deck))
 	session.state = "playerTurn"
 end
 
 function Session.hit(session)
-	table.insert(session.playerHand, Deck.draw(session.deck))
+	Player.draw(session.player, Deck.draw(session.deck))
 
-	if Session.getHandValue(session.playerHand) > 21 then
+	if Session.getHandValue(session.player.hand) > 21 then
 		settle(session, "lose", "Player busted")
 	end
 end
 
 function Session.canSurrender(session)
-	return session.state == "playerTurn" and #session.playerHand == 2
+	return session.state == "playerTurn" and #session.player.hand == 2
 end
 
 function Session.surrender(session)
@@ -190,13 +186,13 @@ function Session.surrender(session)
 end
 
 local function playDealerTurn(session)
-	while Session.getHandValue(session.dealerHand) <= 16 do
-		table.insert(session.dealerHand, Deck.draw(session.deck))
+	while Session.getHandValue(session.dealer.hand) <= 16 do
+		Dealer.draw(session.dealer, Deck.draw(session.deck))
 	end
 end
 
 function Session.stand(session)
-	local playerValue = Session.getHandValue(session.playerHand)
+	local playerValue = Session.getHandValue(session.player.hand)
 
 	if playerValue > 21 then
 		settle(session, "lose", "Player busted")
@@ -205,7 +201,7 @@ function Session.stand(session)
 
 	playDealerTurn(session)
 
-	local dealerValue = Session.getHandValue(session.dealerHand)
+	local dealerValue = Session.getHandValue(session.dealer.hand)
 
 	if dealerValue > 21 then
 		settle(session, "win", "Dealer busted")
@@ -224,10 +220,8 @@ function Session.reset(session)
 	session.resultReason = nil
 	session.bet = Session.DEFAULT_BET
 	session.deck = nil
-	session.playerHand = {}
-	session.dealerHand = {}
-	session.playerMoney = Session.PLAYER_STARTING_MONEY
-	session.dealerMoney = Session.DEALER_STARTING_MONEY
+	session.player = Player.new(Session.PLAYER_STARTING_MONEY)
+	session.dealer = Dealer.new(Session.DEALER_STARTING_MONEY)
 end
 
 return Session
