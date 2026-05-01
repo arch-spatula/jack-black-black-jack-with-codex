@@ -1,3 +1,5 @@
+local Deck = require("deck")
+
 local Session = {}
 
 Session.PLAYER_STARTING_MONEY = 1000
@@ -26,6 +28,7 @@ function Session.new()
 		state = "start",
 		result = nil,
 		bet = Session.DEFAULT_BET,
+		deck = nil,
 		playerMoney = Session.PLAYER_STARTING_MONEY,
 		dealerMoney = Session.DEALER_STARTING_MONEY,
 	}
@@ -35,6 +38,7 @@ function Session.startBetting(session)
 	session.state = "betting"
 	session.result = nil
 	session.bet = getMinimumBet(session)
+	session.deck = Deck.createShuffled()
 end
 
 function Session.increaseBet(session)
@@ -77,6 +81,7 @@ function Session.reset(session)
 	session.state = "start"
 	session.result = nil
 	session.bet = Session.DEFAULT_BET
+	session.deck = nil
 	session.playerMoney = Session.PLAYER_STARTING_MONEY
 	session.dealerMoney = Session.DEALER_STARTING_MONEY
 end
