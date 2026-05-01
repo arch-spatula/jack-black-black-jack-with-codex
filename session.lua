@@ -40,6 +40,7 @@ function Session.new()
 		resultReason = nil,
 		bet = Session.DEFAULT_BET,
 		deck = nil,
+		hasOneEyedJackEvent = false,
 		player = Player.new(Session.PLAYER_STARTING_MONEY),
 		dealer = Dealer.new(Session.DEALER_STARTING_MONEY),
 	}
@@ -75,16 +76,53 @@ function Session.getHandValue(hand)
 	return value
 end
 
+local function roundToNearestHundredBankers(amount)
+	local quotient = math.floor(amount / Session.BET_STEP)
+	local remainder = amount % Session.BET_STEP
+
+	if remainder < Session.BET_STEP / 2 then
+		return quotient * Session.BET_STEP
+	elseif remainder > Session.BET_STEP / 2 then
+		return (quotient + 1) * Session.BET_STEP
+	elseif quotient % 2 == 0 then
+		return quotient * Session.BET_STEP
+	end
+
+	return (quotient + 1) * Session.BET_STEP
+end
+
+local function getOneEyedJackBonus(session)
+	if session.hasOneEyedJackEvent then
+		return roundToNearestHundredBankers(session.bet)
+	end
+
+	return 0
+end
+
+local function appendOneEyedJackBonusReason(reason, bonus)
+	if bonus > 0 then
+		return reason .. ". One-eyed jack bonus: " .. bonus .. " won"
+	end
+
+	return reason
+end
+
 local function settle(session, result, reason)
 	session.result = result
-	session.resultReason = reason
 
 	if result == "win" then
-		Player.addMoney(session.player, session.bet)
-		Dealer.addMoney(session.dealer, -session.bet)
+		local bonus = getOneEyedJackBonus(session)
+		local winAmount = session.bet + bonus
+
+		session.resultReason = appendOneEyedJackBonusReason(reason, bonus)
+		Player.addMoney(session.player, winAmount)
+		Dealer.addMoney(session.dealer, -winAmount)
 	elseif result == "lose" then
+		session.resultReason = reason
 		Player.addMoney(session.player, -session.bet)
 		Dealer.addMoney(session.dealer, session.bet)
+	else
+		session.resultReason = reason
 	end
 
 	if session.player.money <= 0 then
@@ -111,30 +149,18 @@ end
 
 local function settleWinAmount(session, winAmount, reason)
 	session.result = "win"
-	session.resultReason = reason
-	Player.addMoney(session.player, winAmount)
-	Dealer.addMoney(session.dealer, -winAmount)
+	local bonus = getOneEyedJackBonus(session)
+	local totalWinAmount = winAmount + bonus
+
+	session.resultReason = appendOneEyedJackBonusReason(reason, bonus)
+	Player.addMoney(session.player, totalWinAmount)
+	Dealer.addMoney(session.dealer, -totalWinAmount)
 
 	if session.dealer.money <= 0 then
 		session.state = Session.State.HOUSE_BANKRUPT
 	else
 		session.state = Session.State.RESULT
 	end
-end
-
-local function roundToNearestHundredBankers(amount)
-	local quotient = math.floor(amount / Session.BET_STEP)
-	local remainder = amount % Session.BET_STEP
-
-	if remainder < Session.BET_STEP / 2 then
-		return quotient * Session.BET_STEP
-	elseif remainder > Session.BET_STEP / 2 then
-		return (quotient + 1) * Session.BET_STEP
-	elseif quotient % 2 == 0 then
-		return quotient * Session.BET_STEP
-	end
-
-	return (quotient + 1) * Session.BET_STEP
 end
 
 local function getFoldRefund(session)
@@ -153,10 +179,21 @@ local function getBlackjackPayout(session)
 	return roundToNearestHundredBankers(session.bet * 1.5)
 end
 
+local function hasOneEyedJack(hand)
+	for _, card in ipairs(hand) do
+		if Deck.isOneEyedJack(card) then
+			return true
+		end
+	end
+
+	return false
+end
+
 function Session.startBetting(session)
 	session.state = Session.State.BETTING
 	session.result = nil
 	session.resultReason = nil
+	session.hasOneEyedJackEvent = false
 	session.bet = getMinimumBet(session)
 	session.deck = Deck.createShuffled()
 	Player.resetHand(session.player)
@@ -184,6 +221,7 @@ function Session.deal(session)
 	Player.draw(session.player, Deck.draw(session.deck))
 	Dealer.draw(session.dealer, Deck.draw(session.deck))
 	Dealer.draw(session.dealer, Deck.draw(session.deck))
+	session.hasOneEyedJackEvent = hasOneEyedJack(session.player.hand)
 	session.state = Session.State.PLAYER_TURN
 end
 
@@ -293,6 +331,7 @@ function Session.reset(session)
 	session.resultReason = nil
 	session.bet = Session.DEFAULT_BET
 	session.deck = nil
+	session.hasOneEyedJackEvent = false
 	session.player = Player.new(Session.PLAYER_STARTING_MONEY)
 	session.dealer = Dealer.new(Session.DEALER_STARTING_MONEY)
 end

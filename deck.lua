@@ -32,6 +32,10 @@ function Deck.draw(deck)
 	return table.remove(deck)
 end
 
+function Deck.isOneEyedJack(card)
+	return card.rank == "J" and (card.suit == "S" or card.suit == "H")
+end
+
 function Deck.createShuffled()
 	return Deck.shuffle(Deck.create())
 end
