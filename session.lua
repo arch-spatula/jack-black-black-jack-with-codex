@@ -175,6 +175,10 @@ local function isBlackjack(hand)
 	return #hand == 2 and Session.getHandValue(hand) == 21
 end
 
+local function isDealerShowingAce(session)
+	return #session.dealer.hand > 0 and session.dealer.hand[1].rank == "A"
+end
+
 local function getBlackjackPayout(session)
 	return roundToNearestHundredBankers(session.bet * 1.5)
 end
@@ -243,6 +247,12 @@ function Session.canDoubleDown(session)
 		and session.player.money >= session.bet * 2
 end
 
+function Session.canEvenMoney(session)
+	return session.state == Session.State.PLAYER_TURN
+		and isBlackjack(session.player.hand)
+		and isDealerShowingAce(session)
+end
+
 function Session.fold(session)
 	if not Session.canFold(session) then
 		return
@@ -278,6 +288,14 @@ local function settleStand(session, playerValue)
 	else
 		settle(session, "push", "Player and dealer tied")
 	end
+end
+
+function Session.takeEvenMoney(session)
+	if not Session.canEvenMoney(session) then
+		return
+	end
+
+	settleWinAmount(session, session.bet, "Player took even money")
 end
 
 function Session.doubleDown(session)

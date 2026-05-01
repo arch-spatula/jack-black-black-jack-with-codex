@@ -80,7 +80,9 @@ local function drawPlayerTurn(width, height)
 		"center"
 	)
 
-	if Session.canFold(session) and Session.canDoubleDown(session) then
+	if Session.canEvenMoney(session) then
+		love.graphics.printf("E: Even Money  S: Stand", 0, height / 2 + 152, width, "center")
+	elseif Session.canFold(session) and Session.canDoubleDown(session) then
 		love.graphics.printf("H: Hit  S: Stand  F: Fold  D: Double", 0, height / 2 + 152, width, "center")
 	elseif Session.canFold(session) then
 		love.graphics.printf("H: Hit  S: Stand  F: Fold", 0, height / 2 + 152, width, "center")
@@ -167,6 +169,8 @@ local function keyPressedPlayerTurn(key)
 		Session.fold(session)
 	elseif key == "d" then
 		Session.doubleDown(session)
+	elseif key == "e" then
+		Session.takeEvenMoney(session)
 	end
 end
 
