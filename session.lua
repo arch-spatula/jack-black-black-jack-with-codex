@@ -88,6 +88,42 @@ local function settle(session, result, reason)
 	end
 end
 
+local function settleLossAmount(session, lossAmount, reason)
+	session.result = "lose"
+	session.resultReason = reason
+	session.playerMoney = session.playerMoney - lossAmount
+	session.dealerMoney = session.dealerMoney + lossAmount
+
+	if session.playerMoney <= 0 then
+		session.state = "playerBankrupt"
+	else
+		session.state = "result"
+	end
+end
+
+local function roundToNearestHundredBankers(amount)
+	local quotient = math.floor(amount / Session.BET_STEP)
+	local remainder = amount % Session.BET_STEP
+
+	if remainder < Session.BET_STEP / 2 then
+		return quotient * Session.BET_STEP
+	elseif remainder > Session.BET_STEP / 2 then
+		return (quotient + 1) * Session.BET_STEP
+	elseif quotient % 2 == 0 then
+		return quotient * Session.BET_STEP
+	end
+
+	return (quotient + 1) * Session.BET_STEP
+end
+
+local function getSurrenderRefund(session)
+	if session.bet <= Session.BET_STEP then
+		return 0
+	end
+
+	return roundToNearestHundredBankers(session.bet / 2)
+end
+
 function Session.startBetting(session)
 	session.state = "betting"
 	session.result = nil
@@ -132,6 +168,25 @@ function Session.hit(session)
 	if Session.getHandValue(session.playerHand) > 21 then
 		settle(session, "lose", "Player busted")
 	end
+end
+
+function Session.canSurrender(session)
+	return session.state == "playerTurn" and #session.playerHand == 2
+end
+
+function Session.surrender(session)
+	if not Session.canSurrender(session) then
+		return
+	end
+
+	local refund = getSurrenderRefund(session)
+	local lossAmount = session.bet - refund
+
+	settleLossAmount(
+		session,
+		lossAmount,
+		"Player surrendered. Refund: " .. refund .. " won"
+	)
 end
 
 local function playDealerTurn(session)

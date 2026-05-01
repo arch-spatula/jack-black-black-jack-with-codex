@@ -57,7 +57,12 @@ local function drawPlayerTurn(width, height)
 	love.graphics.printf("Dealer Score: " .. getVisibleDealerValue(session.dealerHand), 0, height / 2 + 64, width, "center")
 	love.graphics.printf("Player: " .. formatHand(session.playerHand), 0, height / 2 + 96, width, "center")
 	love.graphics.printf("Player Score: " .. Session.getHandValue(session.playerHand), 0, height / 2 + 120, width, "center")
-	love.graphics.printf("H: Hit  S: Stand", 0, height / 2 + 152, width, "center")
+
+	if Session.canSurrender(session) then
+		love.graphics.printf("H: Hit  S: Stand  D: Die", 0, height / 2 + 152, width, "center")
+	else
+		love.graphics.printf("H: Hit  S: Stand", 0, height / 2 + 152, width, "center")
+	end
 end
 
 local function drawResult(width, height)
@@ -139,6 +144,8 @@ function love.keypressed(key)
 			Session.hit(session)
 		elseif key == "s" then
 			Session.stand(session)
+		elseif key == "d" then
+			Session.surrender(session)
 		end
 	elseif session.state == "result" then
 		if key ~= "return" and key ~= "kpenter" then
