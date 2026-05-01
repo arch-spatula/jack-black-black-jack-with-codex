@@ -134,13 +134,27 @@ function Session.hit(session)
 	end
 end
 
+local function playDealerTurn(session)
+	while Session.getHandValue(session.dealerHand) <= 16 do
+		table.insert(session.dealerHand, Deck.draw(session.deck))
+	end
+end
+
 function Session.stand(session)
 	local playerValue = Session.getHandValue(session.playerHand)
-	local dealerValue = Session.getHandValue(session.dealerHand)
 
 	if playerValue > 21 then
 		settle(session, "lose", "Player busted")
-	elseif playerValue > dealerValue or dealerValue > 21 then
+		return
+	end
+
+	playDealerTurn(session)
+
+	local dealerValue = Session.getHandValue(session.dealerHand)
+
+	if dealerValue > 21 then
+		settle(session, "win", "Dealer busted")
+	elseif playerValue > dealerValue then
 		settle(session, "win", "Player score is higher")
 	elseif playerValue < dealerValue then
 		settle(session, "lose", "Dealer score is higher")
