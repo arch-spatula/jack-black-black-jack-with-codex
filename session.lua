@@ -101,6 +101,19 @@ local function settleLossAmount(session, lossAmount, reason)
 	end
 end
 
+local function settleWinAmount(session, winAmount, reason)
+	session.result = "win"
+	session.resultReason = reason
+	Player.addMoney(session.player, winAmount)
+	Dealer.addMoney(session.dealer, -winAmount)
+
+	if session.dealer.money <= 0 then
+		session.state = "houseBankrupt"
+	else
+		session.state = "result"
+	end
+end
+
 local function roundToNearestHundredBankers(amount)
 	local quotient = math.floor(amount / Session.BET_STEP)
 	local remainder = amount % Session.BET_STEP
@@ -122,6 +135,14 @@ local function getSurrenderRefund(session)
 	end
 
 	return roundToNearestHundredBankers(session.bet / 2)
+end
+
+local function isBlackjack(hand)
+	return #hand == 2 and Session.getHandValue(hand) == 21
+end
+
+local function getBlackjackPayout(session)
+	return roundToNearestHundredBankers(session.bet * 1.5)
 end
 
 function Session.startBetting(session)
@@ -193,9 +214,26 @@ end
 
 function Session.stand(session)
 	local playerValue = Session.getHandValue(session.player.hand)
+	local playerHasBlackjack = isBlackjack(session.player.hand)
+	local dealerHasBlackjack = isBlackjack(session.dealer.hand)
 
 	if playerValue > 21 then
 		settle(session, "lose", "Player busted")
+		return
+	elseif playerHasBlackjack and dealerHasBlackjack then
+		settle(session, "push", "Both player and dealer have blackjack")
+		return
+	elseif playerHasBlackjack then
+		local payout = getBlackjackPayout(session)
+
+		settleWinAmount(
+			session,
+			payout,
+			"Player blackjack. Payout: " .. payout .. " won"
+		)
+		return
+	elseif dealerHasBlackjack then
+		settle(session, "lose", "Dealer blackjack")
 		return
 	end
 
