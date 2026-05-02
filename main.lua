@@ -406,7 +406,7 @@ end
 
 local function keyPressedResult(key)
 	if isEnter(key) then
-		Session.startBetting(session)
+		Session.continueAfterResult(session)
 	end
 end
 

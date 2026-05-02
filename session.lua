@@ -76,6 +76,7 @@ function Session.new()
 		resultReason = nil,
 		payoutItems = {},
 		payoutTotal = 0,
+		pendingBankruptState = nil,
 		bet = Session.DEFAULT_BET,
 		playerChips = createStartingPlayerChips(),
 		dealerChips = Chip.fromAmountHigh(Session.DEALER_STARTING_MONEY),
@@ -212,6 +213,7 @@ local function applyPayoutBreakdown(session, breakdown)
 	session.resultReason = breakdown.reason
 	session.payoutItems = breakdown.items
 	session.payoutTotal = breakdown.total
+	session.pendingBankruptState = nil
 
 	if returnAmount > 0 then
 		Chip.addAmountHigh(session.playerChips, returnAmount)
@@ -223,12 +225,12 @@ local function applyPayoutBreakdown(session, breakdown)
 	syncDealerChips(session)
 
 	if session.player.money <= 0 then
-		session.state = Session.State.PLAYER_BANKRUPT
+		session.pendingBankruptState = Session.State.PLAYER_BANKRUPT
 	elseif session.dealer.money <= 0 then
-		session.state = Session.State.HOUSE_BANKRUPT
-	else
-		session.state = Session.State.RESULT
+		session.pendingBankruptState = Session.State.HOUSE_BANKRUPT
 	end
+
+	session.state = Session.State.RESULT
 end
 
 local function settle(session, result, reason)
@@ -285,6 +287,7 @@ function Session.startBetting(session)
 	session.resultReason = nil
 	session.payoutItems = {}
 	session.payoutTotal = 0
+	session.pendingBankruptState = nil
 	session.hasOneEyedJackEvent = false
 	session.betChips = Chip.createEmpty()
 	session.selectedChipValue = 100
@@ -496,6 +499,7 @@ function Session.reset(session)
 	session.resultReason = nil
 	session.payoutItems = {}
 	session.payoutTotal = 0
+	session.pendingBankruptState = nil
 	session.bet = Session.DEFAULT_BET
 	session.playerChips = createStartingPlayerChips()
 	session.dealerChips = Chip.fromAmountHigh(Session.DEALER_STARTING_MONEY)
@@ -506,6 +510,16 @@ function Session.reset(session)
 	session.hasOneEyedJackEvent = false
 	session.player = Player.new(Session.PLAYER_STARTING_MONEY)
 	session.dealer = Dealer.new(Session.DEALER_STARTING_MONEY)
+end
+
+function Session.continueAfterResult(session)
+	if session.pendingBankruptState then
+		session.state = session.pendingBankruptState
+		session.pendingBankruptState = nil
+		return
+	end
+
+	Session.startBetting(session)
 end
 
 function Session.getCurrentPayoutPreview(session)
