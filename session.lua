@@ -8,6 +8,11 @@ Session.PLAYER_STARTING_MONEY = 1000
 Session.DEALER_STARTING_MONEY = 100000000
 Session.DEFAULT_BET = 100
 Session.BET_STEP = 100
+Session.CHARLIE_PAYOUT_BY_COUNT = {
+	[5] = 1,
+	[6] = 2,
+	[7] = 3,
+}
 Session.State = {
 	START = "start",
 	BETTING = "betting",
@@ -232,8 +237,13 @@ end
 function Session.hit(session)
 	Player.draw(session.player, Deck.draw(session.deck))
 
-	if Session.getHandValue(session.player.hand) > 21 then
+	local playerValue = Session.getHandValue(session.player.hand)
+	local charliePayout = Session.CHARLIE_PAYOUT_BY_COUNT[#session.player.hand]
+
+	if playerValue > 21 then
 		settle(session, "lose", "Player busted")
+	elseif #session.player.hand == 7 then
+		settleWinAmount(session, session.bet * charliePayout, "Seven Card Charlie")
 	end
 end
 
@@ -251,6 +261,14 @@ function Session.canEvenMoney(session)
 	return session.state == Session.State.PLAYER_TURN
 		and isBlackjack(session.player.hand)
 		and isDealerShowingAce(session)
+end
+
+function Session.canCashOutCharlie(session)
+	local cardCount = #session.player.hand
+
+	return session.state == Session.State.PLAYER_TURN
+		and (cardCount == 5 or cardCount == 6)
+		and Session.getHandValue(session.player.hand) <= 21
 end
 
 function Session.fold(session)
@@ -296,6 +314,22 @@ function Session.takeEvenMoney(session)
 	end
 
 	settleWinAmount(session, session.bet, "Player took even money")
+end
+
+function Session.cashOutCharlie(session)
+	if not Session.canCashOutCharlie(session) then
+		return
+	end
+
+	local cardCount = #session.player.hand
+	local payout = Session.CHARLIE_PAYOUT_BY_COUNT[cardCount]
+	local reason = "Five Card Charlie"
+
+	if cardCount == 6 then
+		reason = "Six Card Charlie"
+	end
+
+	settleWinAmount(session, session.bet * payout, reason)
 end
 
 function Session.doubleDown(session)

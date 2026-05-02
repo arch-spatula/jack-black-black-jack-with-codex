@@ -80,7 +80,9 @@ local function drawPlayerTurn(width, height)
 		"center"
 	)
 
-	if Session.canEvenMoney(session) then
+	if Session.canCashOutCharlie(session) then
+		love.graphics.printf("H: Hit  C: Cash Out", 0, height / 2 + 152, width, "center")
+	elseif Session.canEvenMoney(session) then
 		love.graphics.printf("E: Even Money  S: Stand", 0, height / 2 + 152, width, "center")
 	elseif Session.canFold(session) and Session.canDoubleDown(session) then
 		love.graphics.printf("H: Hit  S: Stand  F: Fold  D: Double", 0, height / 2 + 152, width, "center")
@@ -161,7 +163,13 @@ local function keyPressedBetting(key)
 end
 
 local function keyPressedPlayerTurn(key)
-	if key == "h" then
+	if Session.canCashOutCharlie(session) then
+		if key == "h" then
+			Session.hit(session)
+		elseif key == "c" then
+			Session.cashOutCharlie(session)
+		end
+	elseif key == "h" then
 		Session.hit(session)
 	elseif key == "s" then
 		Session.stand(session)
