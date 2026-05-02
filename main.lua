@@ -1,6 +1,7 @@
 local Session = require("session")
 local session = Session.new()
 local cardImages = {}
+local cardBackImage = nil
 
 local CARD_SCALE = 0.35
 local CARD_WIDTH = 200 * CARD_SCALE
@@ -91,6 +92,12 @@ local function getVisibleDealerValue(hand)
 end
 
 local function drawCardBack(x, y)
+	if cardBackImage then
+		love.graphics.setColor(1, 1, 1)
+		love.graphics.draw(cardBackImage, x, y, 0, CARD_SCALE, CARD_SCALE)
+		return
+	end
+
 	love.graphics.setColor(0.78, 0.78, 0.7)
 	love.graphics.rectangle("fill", x, y, CARD_WIDTH, CARD_HEIGHT, 6, 6)
 	love.graphics.setColor(0.08, 0.14, 0.28)
@@ -289,6 +296,10 @@ local keyPressedByState = {
 
 function love.load()
 	love.graphics.setBackgroundColor(0.08, 0.1, 0.08)
+
+	if love.filesystem.getInfo("assets/back.png") then
+		cardBackImage = love.graphics.newImage("assets/back.png")
+	end
 
 	for _, suit in ipairs({ "D", "C", "H", "S" }) do
 		for _, rank in ipairs({ "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K" }) do
