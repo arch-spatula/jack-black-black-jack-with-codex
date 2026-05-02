@@ -1,3 +1,4 @@
+local Chip = require("chip")
 local Deck = require("deck")
 local Dealer = require("dealer")
 local Player = require("player")
@@ -22,23 +23,53 @@ Session.State = {
 	HOUSE_BANKRUPT = "houseBankrupt",
 }
 
-local function getMinimumBet(session)
-	if session.player.money < Session.BET_STEP then
-		return session.player.money
-	end
+local function createStartingPlayerChips()
+	local chips = Chip.createEmpty()
 
-	return Session.BET_STEP
+	chips[100] = 10
+	return chips
 end
 
-local function getMaximumBet(session)
-	if session.player.money < Session.BET_STEP then
-		return session.player.money
+local function syncPlayerMoney(session)
+	session.player.money = Chip.total(session.playerChips)
+end
+
+local function syncDealerChips(session)
+	session.dealerChips = Chip.fromAmountHigh(session.dealer.money)
+end
+
+local function syncBetAmount(session)
+	session.bet = Chip.total(session.betChips)
+end
+
+local function moveSelectedChip(source, target, session)
+	if not Chip.moveChip(source, target, session.selectedChipValue) then
+		return false
 	end
 
-	return session.player.money - session.player.money % Session.BET_STEP
+	syncBetAmount(session)
+	syncPlayerMoney(session)
+	return true
+end
+
+local function addBetAmount(session, amount)
+	local remainingPlayerMoney = session.player.money - amount
+
+	if remainingPlayerMoney < 0 then
+		return false
+	end
+
+	Chip.replaceWithAmountHigh(session.playerChips, remainingPlayerMoney)
+	Chip.addAmountHigh(session.betChips, amount)
+	syncPlayerMoney(session)
+	syncBetAmount(session)
+	return true
 end
 
 function Session.new()
+	local player = Player.new(Session.PLAYER_STARTING_MONEY)
+	local dealer = Dealer.new(Session.DEALER_STARTING_MONEY)
+
 	return {
 		state = Session.State.START,
 		result = nil,
@@ -46,10 +77,15 @@ function Session.new()
 		payoutItems = {},
 		payoutTotal = 0,
 		bet = Session.DEFAULT_BET,
+		playerChips = createStartingPlayerChips(),
+		dealerChips = Chip.fromAmountHigh(Session.DEALER_STARTING_MONEY),
+		betChips = Chip.createEmpty(),
+		selectedChipValue = 100,
+		chipSwapMode = "down",
 		deck = nil,
 		hasOneEyedJackEvent = false,
-		player = Player.new(Session.PLAYER_STARTING_MONEY),
-		dealer = Dealer.new(Session.DEALER_STARTING_MONEY),
+		player = player,
+		dealer = dealer,
 	}
 end
 
@@ -170,13 +206,21 @@ local function createPushBreakdown(reason)
 end
 
 local function applyPayoutBreakdown(session, breakdown)
+	local returnAmount = session.bet + breakdown.total
+
 	session.result = breakdown.result
 	session.resultReason = breakdown.reason
 	session.payoutItems = breakdown.items
 	session.payoutTotal = breakdown.total
 
-	Player.addMoney(session.player, breakdown.total)
+	if returnAmount > 0 then
+		Chip.addAmountHigh(session.playerChips, returnAmount)
+	end
+
+	session.betChips = Chip.createEmpty()
+	syncPlayerMoney(session)
 	Dealer.addMoney(session.dealer, -breakdown.total)
+	syncDealerChips(session)
 
 	if session.player.money <= 0 then
 		session.state = Session.State.PLAYER_BANKRUPT
@@ -242,29 +286,63 @@ function Session.startBetting(session)
 	session.payoutItems = {}
 	session.payoutTotal = 0
 	session.hasOneEyedJackEvent = false
-	session.bet = getMinimumBet(session)
+	session.betChips = Chip.createEmpty()
+	session.selectedChipValue = 100
+	session.chipSwapMode = "down"
+	syncPlayerMoney(session)
+	syncDealerChips(session)
+	session.bet = 0
+	if session.player.money >= Session.BET_STEP then
+		addBetAmount(session, Session.BET_STEP)
+	end
 	session.deck = Deck.createShuffled()
 	Player.resetHand(session.player)
 	Dealer.resetHand(session.dealer)
 end
 
 function Session.increaseBet(session)
-	local maximumBet = getMaximumBet(session)
-
-	if session.bet < maximumBet then
-		session.bet = math.min(session.bet + Session.BET_STEP, maximumBet)
-	end
+	session.selectedChipValue = Chip.getNextValue(session.selectedChipValue)
 end
 
 function Session.decreaseBet(session)
-	local minimumBet = getMinimumBet(session)
+	session.selectedChipValue = Chip.getPreviousValue(session.selectedChipValue)
+end
 
-	if session.bet > minimumBet then
-		session.bet = math.max(session.bet - Session.BET_STEP, minimumBet)
+function Session.placeSelectedChip(session)
+	return moveSelectedChip(session.playerChips, session.betChips, session)
+end
+
+function Session.reclaimSelectedChip(session)
+	return moveSelectedChip(session.betChips, session.playerChips, session)
+end
+
+function Session.setChipSwapMode(session, mode)
+	if mode == "up" or mode == "down" then
+		session.chipSwapMode = mode
 	end
 end
 
+function Session.swapBetChips(session)
+	local didSwap
+
+	if session.chipSwapMode == "up" then
+		didSwap = Chip.swapUp(session.betChips, session.selectedChipValue)
+	else
+		didSwap = Chip.swapDown(session.betChips, session.selectedChipValue)
+	end
+
+	if didSwap then
+		syncBetAmount(session)
+	end
+
+	return didSwap
+end
+
 function Session.deal(session)
+	if session.bet <= 0 then
+		return
+	end
+
 	Player.draw(session.player, Deck.draw(session.deck))
 	Player.draw(session.player, Deck.draw(session.deck))
 	Dealer.draw(session.dealer, Deck.draw(session.deck))
@@ -293,7 +371,7 @@ end
 function Session.canDoubleDown(session)
 	return session.state == Session.State.PLAYER_TURN
 		and #session.player.hand == 2
-		and session.player.money >= session.bet * 2
+		and session.player.money >= session.bet
 end
 
 function Session.canEvenMoney(session)
@@ -371,7 +449,10 @@ function Session.doubleDown(session)
 		return
 	end
 
-	session.bet = session.bet * 2
+	if not addBetAmount(session, session.bet) then
+		return
+	end
+
 	Player.draw(session.player, Deck.draw(session.deck))
 
 	local playerValue = Session.getHandValue(session.player.hand)
@@ -419,6 +500,11 @@ function Session.reset(session)
 	session.payoutItems = {}
 	session.payoutTotal = 0
 	session.bet = Session.DEFAULT_BET
+	session.playerChips = createStartingPlayerChips()
+	session.dealerChips = Chip.fromAmountHigh(Session.DEALER_STARTING_MONEY)
+	session.betChips = Chip.createEmpty()
+	session.selectedChipValue = 100
+	session.chipSwapMode = "down"
 	session.deck = nil
 	session.hasOneEyedJackEvent = false
 	session.player = Player.new(Session.PLAYER_STARTING_MONEY)

@@ -1,13 +1,24 @@
+local Chip = require("chip")
 local Session = require("session")
 local session = Session.new()
 local cardImages = {}
 local cardBackImage = nil
+local chipImages = {}
+local flyingChips = {}
 
 local CARD_SCALE = 0.35
 local CARD_WIDTH = 200 * CARD_SCALE
 local CARD_HEIGHT = 280 * CARD_SCALE
 local CARD_OVERLAP_OFFSET = 34
 local CARD_ASSET_PATH = "assets/cards/"
+local CHIP_SCALE = 0.45
+local CHIP_WIDTH = 103 * CHIP_SCALE
+local CHIP_HEIGHT = 88 * CHIP_SCALE
+local CHIP_STACK_OFFSET = 12
+local CHIP_COLUMN_WIDTH = 100
+local CHIP_STACK_SIZE = 10
+local CHIP_ANIMATION_DURATION = 0.25
+local CHIP_ASSET_PATH = "assets/chips/"
 
 ---@param amount number
 ---@return string
@@ -65,10 +76,113 @@ local function drawStart(width, height)
 	love.graphics.printf("Press Enter to Start", 0, height / 2 + 48, width, "center")
 end
 
+local function getChipImage(value)
+	return chipImages[Chip.getLabel(value)]
+end
+
+local function getChipLayoutStartX(width)
+	return (width - #Chip.DENOMINATIONS * CHIP_COLUMN_WIDTH) / 2
+end
+
+local function getChipColumnX(width, value)
+	local startX = getChipLayoutStartX(width)
+
+	for index, denomination in ipairs(Chip.DENOMINATIONS) do
+		if denomination.value == value then
+			return startX + (index - 1) * CHIP_COLUMN_WIDTH
+		end
+	end
+
+	return startX
+end
+
+local function drawChipImage(value, x, y)
+	local image = getChipImage(value)
+
+	if image then
+		love.graphics.setColor(1, 1, 1)
+		love.graphics.draw(image, x, y, 0, CHIP_SCALE, CHIP_SCALE)
+		return
+	end
+
+	love.graphics.setColor(0.85, 0.78, 0.42)
+	love.graphics.circle("fill", x + CHIP_WIDTH / 2, y + CHIP_HEIGHT / 2, CHIP_WIDTH / 2)
+	love.graphics.setColor(0.12, 0.1, 0.08)
+	love.graphics.printf(Chip.getLabel(value), x, y + CHIP_HEIGHT / 2 - 8, CHIP_WIDTH, "center")
+	love.graphics.setColor(1, 1, 1)
+end
+
+local function drawChipStack(value, x, y, count)
+	for index = 1, count do
+		drawChipImage(value, x, y + (index - 1) * CHIP_STACK_OFFSET)
+	end
+end
+
+local function drawChipGroups(chips, title, y, width, selectedValue)
+	local startX = getChipLayoutStartX(width)
+
+	love.graphics.setColor(1, 1, 1)
+	love.graphics.printf(title, 0, y - 24, width, "center")
+
+	for index, denomination in ipairs(Chip.DENOMINATIONS) do
+		local value = denomination.value
+		local count = chips[value] or 0
+		local columnX = startX + (index - 1) * CHIP_COLUMN_WIDTH
+		local stackCount = math.ceil(count / CHIP_STACK_SIZE)
+
+		if selectedValue == value then
+			love.graphics.setColor(1, 1, 1)
+			love.graphics.rectangle("line", columnX - 6, y - 6, CHIP_COLUMN_WIDTH - 16, 172, 4, 4)
+		end
+
+		for stackIndex = 1, stackCount do
+			local remaining = count - (stackIndex - 1) * CHIP_STACK_SIZE
+			local countInStack = math.min(remaining, CHIP_STACK_SIZE)
+			local stackX = columnX + (stackIndex - 1) * (CHIP_WIDTH + 6)
+
+			drawChipStack(value, stackX, y, countInStack)
+		end
+
+		love.graphics.setColor(1, 1, 1)
+		love.graphics.printf(denomination.label .. " x" .. count, columnX - 10, y + 148, CHIP_COLUMN_WIDTH, "center")
+	end
+end
+
+local function addFlyingChip(value, fromX, fromY, toX, toY)
+	table.insert(flyingChips, {
+		value = value,
+		fromX = fromX,
+		fromY = fromY,
+		toX = toX,
+		toY = toY,
+		elapsed = 0,
+		duration = CHIP_ANIMATION_DURATION,
+	})
+end
+
+local function drawFlyingChips()
+	for _, flyingChip in ipairs(flyingChips) do
+		local progress = math.min(flyingChip.elapsed / flyingChip.duration, 1)
+		local x = flyingChip.fromX + (flyingChip.toX - flyingChip.fromX) * progress
+		local y = flyingChip.fromY + (flyingChip.toY - flyingChip.fromY) * progress
+
+		drawChipImage(flyingChip.value, x, y)
+	end
+end
+
 local function drawBetting(width, height)
-	love.graphics.printf("Bet: " .. formatWon(session.bet), 0, height / 2 + 48, width, "center")
-	love.graphics.printf("Left/Down: -100  Right/Up: +100", 0, height / 2 + 80, width, "center")
-	love.graphics.printf("Press Enter to Bet", 0, height / 2 + 112, width, "center")
+	love.graphics.printf("Bet: " .. formatWon(session.bet), 0, 104, width, "center")
+	love.graphics.printf(
+		"Selected: " .. Chip.getLabel(session.selectedChipValue) .. "  Swap: " .. session.chipSwapMode,
+		0,
+		128,
+		width,
+		"center"
+	)
+	drawChipGroups(session.betChips, "Bet Chips", 180, width, session.selectedChipValue)
+	drawChipGroups(session.playerChips, "Player Chips", 384, width, session.selectedChipValue)
+	love.graphics.printf("Arrows: Select  Space: Bet  Shift+Space: Take Back  U/D: Swap Mode  S: Swap  Enter: Deal", 0, height - 28, width, "center")
+	drawFlyingChips()
 end
 
 local function getCardImageKey(card)
@@ -248,6 +362,23 @@ local function keyPressedBetting(key)
 		Session.decreaseBet(session)
 	elseif key == "right" or key == "up" then
 		Session.increaseBet(session)
+	elseif key == "space" then
+		local width = love.graphics.getWidth()
+		local chipX = getChipColumnX(width, session.selectedChipValue)
+
+		if love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift") then
+			if Session.reclaimSelectedChip(session) then
+				addFlyingChip(session.selectedChipValue, chipX, 180, chipX, 384)
+			end
+		elseif Session.placeSelectedChip(session) then
+			addFlyingChip(session.selectedChipValue, chipX, 384, chipX, 180)
+		end
+	elseif key == "u" then
+		Session.setChipSwapMode(session, "up")
+	elseif key == "d" then
+		Session.setChipSwapMode(session, "down")
+	elseif key == "s" then
+		Session.swapBetChips(session)
 	elseif isEnter(key) then
 		Session.deal(session)
 	end
@@ -301,6 +432,15 @@ function love.load()
 		cardBackImage = love.graphics.newImage("assets/back.png")
 	end
 
+	for _, denomination in ipairs(Chip.DENOMINATIONS) do
+		local key = denomination.label
+		local path = CHIP_ASSET_PATH .. key .. ".png"
+
+		if love.filesystem.getInfo(path) then
+			chipImages[key] = love.graphics.newImage(path)
+		end
+	end
+
 	for _, suit in ipairs({ "D", "C", "H", "S" }) do
 		for _, rank in ipairs({ "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K" }) do
 			local key = suit .. rank
@@ -314,7 +454,15 @@ function love.load()
 end
 
 function love.update(dt)
-	--
+	for index = #flyingChips, 1, -1 do
+		local flyingChip = flyingChips[index]
+
+		flyingChip.elapsed = flyingChip.elapsed + dt
+
+		if flyingChip.elapsed >= flyingChip.duration then
+			table.remove(flyingChips, index)
+		end
+	end
 end
 
 function love.draw()
