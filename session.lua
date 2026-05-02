@@ -292,9 +292,6 @@ function Session.startBetting(session)
 	syncPlayerMoney(session)
 	syncDealerChips(session)
 	session.bet = 0
-	if session.player.money >= Session.BET_STEP then
-		addBetAmount(session, Session.BET_STEP)
-	end
 	session.deck = Deck.createShuffled()
 	Player.resetHand(session.player)
 	Dealer.resetHand(session.dealer)
@@ -339,7 +336,7 @@ function Session.swapBetChips(session)
 end
 
 function Session.deal(session)
-	if session.bet <= 0 then
+	if session.bet < Session.BET_STEP then
 		return
 	end
 
