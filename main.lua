@@ -86,10 +86,12 @@ local function drawPlayerTurn(width, height)
 		love.graphics.printf("E: Even Money  S: Stand", 0, height / 2 + 152, width, "center")
 	elseif Session.canFold(session) and Session.canDoubleDown(session) then
 		love.graphics.printf("H: Hit  S: Stand  F: Fold  D: Double", 0, height / 2 + 152, width, "center")
+		love.graphics.printf("Double adds: " .. formatWon(session.bet), 0, height / 2 + 176, width, "center")
 	elseif Session.canFold(session) then
 		love.graphics.printf("H: Hit  S: Stand  F: Fold", 0, height / 2 + 152, width, "center")
 	elseif Session.canDoubleDown(session) then
 		love.graphics.printf("H: Hit  S: Stand  D: Double", 0, height / 2 + 152, width, "center")
+		love.graphics.printf("Double adds: " .. formatWon(session.bet), 0, height / 2 + 176, width, "center")
 	else
 		love.graphics.printf("H: Hit  S: Stand", 0, height / 2 + 152, width, "center")
 	end
