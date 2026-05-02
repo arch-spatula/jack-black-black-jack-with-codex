@@ -25,6 +25,39 @@ local function formatWon(amount)
 	return formatted .. " won"
 end
 
+---@param amount number
+---@return string
+local function formatSignedWon(amount)
+	if amount > 0 then
+		return "+" .. formatWon(amount)
+	end
+
+	return formatWon(amount)
+end
+
+local function formatPayoutItem(item)
+	return item.label .. ": " .. formatSignedWon(item.amount)
+end
+
+local function drawPayoutBreakdown(breakdown, x, y, width, title)
+	if not breakdown then
+		return
+	end
+
+	local itemY = y
+
+	if title then
+		love.graphics.printf(title, x, y, width, "center")
+		itemY = y + 20
+	end
+
+	for index, item in ipairs(breakdown.items) do
+		love.graphics.printf(formatPayoutItem(item), x, itemY + (index - 1) * 20, width, "center")
+	end
+
+	love.graphics.printf("Total: " .. formatSignedWon(breakdown.total), x, itemY + #breakdown.items * 20, width, "center")
+end
+
 ---@param width number
 ---@param height number
 local function drawStart(width, height)
@@ -117,6 +150,7 @@ local function drawPlayerTurn(width, height)
 		"center"
 	)
 	drawHandCentered(session.player.hand, 324, width, false)
+	drawPayoutBreakdown(Session.getCurrentPayoutPreview(session), 0, 428, width, "Current payout")
 
 	if Session.canCashOutCharlie(session) then
 		love.graphics.printf("H: Hit  C: Cash Out", 0, height - 64, width, "center")
@@ -162,13 +196,21 @@ local function drawResult(width, height)
 		"center"
 	)
 	drawHandCentered(session.player.hand, 360, width, false)
+	drawPayoutBreakdown({
+		items = session.payoutItems or {},
+		total = session.payoutTotal or 0,
+	}, 0, height - 116, width, "Payout")
 	love.graphics.printf("Press Enter to Continue", 0, height - 32, width, "center")
 end
 
 local function drawBankrupt(width, height, message)
 	love.graphics.printf(message, 0, height / 2 + 48, width, "center")
 	love.graphics.printf(session.resultReason or "", 0, height / 2 + 80, width, "center")
-	love.graphics.printf("Press Enter to Start New Session", 0, height / 2 + 112, width, "center")
+	drawPayoutBreakdown({
+		items = session.payoutItems or {},
+		total = session.payoutTotal or 0,
+	}, 0, height / 2 + 104, width, "Payout")
+	love.graphics.printf("Press Enter to Start New Session", 0, height / 2 + 168, width, "center")
 end
 
 local drawByState = {

@@ -43,6 +43,8 @@ function Session.new()
 		state = Session.State.START,
 		result = nil,
 		resultReason = nil,
+		payoutItems = {},
+		payoutTotal = 0,
 		bet = Session.DEFAULT_BET,
 		deck = nil,
 		hasOneEyedJackEvent = false,
@@ -104,31 +106,77 @@ local function getOneEyedJackBonus(session)
 	return 0
 end
 
-local function appendOneEyedJackBonusReason(reason, bonus)
-	if bonus > 0 then
-		return reason .. ". One-eyed jack bonus: " .. bonus .. " won"
-	end
+local function addPayoutItem(breakdown, label, amount)
+	table.insert(breakdown.items, {
+		label = label,
+		amount = amount,
+	})
 
-	return reason
+	breakdown.total = breakdown.total + amount
 end
 
-local function settle(session, result, reason)
-	session.result = result
+local function createPayoutBreakdown(result, reason)
+	return {
+		result = result,
+		reason = reason,
+		items = {},
+		total = 0,
+	}
+end
 
-	if result == "win" then
-		local bonus = getOneEyedJackBonus(session)
-		local winAmount = session.bet + bonus
-
-		session.resultReason = appendOneEyedJackBonusReason(reason, bonus)
-		Player.addMoney(session.player, winAmount)
-		Dealer.addMoney(session.dealer, -winAmount)
-	elseif result == "lose" then
-		session.resultReason = reason
-		Player.addMoney(session.player, -session.bet)
-		Dealer.addMoney(session.dealer, session.bet)
-	else
-		session.resultReason = reason
+local function addOneEyedJackBonus(session, breakdown)
+	if breakdown.result ~= "win" then
+		return
 	end
+
+	local bonus = getOneEyedJackBonus(session)
+
+	if bonus > 0 then
+		addPayoutItem(breakdown, "One-eyed jack bonus", bonus)
+	end
+end
+
+local function createWinBreakdown(session, label, amount, reason)
+	local breakdown = createPayoutBreakdown("win", reason)
+
+	addPayoutItem(breakdown, label, amount)
+	addOneEyedJackBonus(session, breakdown)
+
+	return breakdown
+end
+
+local function createLossBreakdown(label, lossAmount, reason)
+	local breakdown = createPayoutBreakdown("lose", reason)
+
+	addPayoutItem(breakdown, label, -lossAmount)
+
+	return breakdown
+end
+
+local function createFoldBreakdown(session, refund)
+	local breakdown = createPayoutBreakdown("lose", "Player folded")
+
+	addPayoutItem(breakdown, "Lost bet", -session.bet)
+
+	if refund > 0 then
+		addPayoutItem(breakdown, "Fold refund", refund)
+	end
+
+	return breakdown
+end
+
+local function createPushBreakdown(reason)
+	return createPayoutBreakdown("push", reason)
+end
+
+local function applyPayoutBreakdown(session, breakdown)
+	session.result = breakdown.result
+	session.resultReason = breakdown.reason
+	session.payoutItems = breakdown.items
+	session.payoutTotal = breakdown.total
+
+	Player.addMoney(session.player, breakdown.total)
+	Dealer.addMoney(session.dealer, -breakdown.total)
 
 	if session.player.money <= 0 then
 		session.state = Session.State.PLAYER_BANKRUPT
@@ -139,33 +187,22 @@ local function settle(session, result, reason)
 	end
 end
 
-local function settleLossAmount(session, lossAmount, reason)
-	session.result = "lose"
-	session.resultReason = reason
-	Player.addMoney(session.player, -lossAmount)
-	Dealer.addMoney(session.dealer, lossAmount)
+local function settle(session, result, reason)
+	local breakdown
 
-	if session.player.money <= 0 then
-		session.state = Session.State.PLAYER_BANKRUPT
+	if result == "win" then
+		breakdown = createWinBreakdown(session, "Base win", session.bet, reason)
+	elseif result == "lose" then
+		breakdown = createLossBreakdown("Lost bet", session.bet, reason)
 	else
-		session.state = Session.State.RESULT
+		breakdown = createPushBreakdown(reason)
 	end
+
+	applyPayoutBreakdown(session, breakdown)
 end
 
-local function settleWinAmount(session, winAmount, reason)
-	session.result = "win"
-	local bonus = getOneEyedJackBonus(session)
-	local totalWinAmount = winAmount + bonus
-
-	session.resultReason = appendOneEyedJackBonusReason(reason, bonus)
-	Player.addMoney(session.player, totalWinAmount)
-	Dealer.addMoney(session.dealer, -totalWinAmount)
-
-	if session.dealer.money <= 0 then
-		session.state = Session.State.HOUSE_BANKRUPT
-	else
-		session.state = Session.State.RESULT
-	end
+local function settleWinAmount(session, label, winAmount, reason)
+	applyPayoutBreakdown(session, createWinBreakdown(session, label, winAmount, reason))
 end
 
 local function getFoldRefund(session)
@@ -202,6 +239,8 @@ function Session.startBetting(session)
 	session.state = Session.State.BETTING
 	session.result = nil
 	session.resultReason = nil
+	session.payoutItems = {}
+	session.payoutTotal = 0
 	session.hasOneEyedJackEvent = false
 	session.bet = getMinimumBet(session)
 	session.deck = Deck.createShuffled()
@@ -243,7 +282,7 @@ function Session.hit(session)
 	if playerValue > 21 then
 		settle(session, "lose", "Player busted")
 	elseif #session.player.hand == 7 then
-		settleWinAmount(session, session.bet * charliePayout, "Seven Card Charlie")
+		settleWinAmount(session, "Seven Card Charlie", session.bet * charliePayout, "Seven Card Charlie")
 	end
 end
 
@@ -277,13 +316,8 @@ function Session.fold(session)
 	end
 
 	local refund = getFoldRefund(session)
-	local lossAmount = session.bet - refund
 
-	settleLossAmount(
-		session,
-		lossAmount,
-		"Player folded. Refund: " .. refund .. " won"
-	)
+	applyPayoutBreakdown(session, createFoldBreakdown(session, refund))
 end
 
 local function playDealerTurn(session)
@@ -313,7 +347,7 @@ function Session.takeEvenMoney(session)
 		return
 	end
 
-	settleWinAmount(session, session.bet, "Player took even money")
+	settleWinAmount(session, "Even money", session.bet, "Player took even money")
 end
 
 function Session.cashOutCharlie(session)
@@ -329,7 +363,7 @@ function Session.cashOutCharlie(session)
 		reason = "Six Card Charlie"
 	end
 
-	settleWinAmount(session, session.bet * payout, reason)
+	settleWinAmount(session, reason, session.bet * payout, reason)
 end
 
 function Session.doubleDown(session)
@@ -365,6 +399,7 @@ function Session.stand(session)
 
 		settleWinAmount(
 			session,
+			"Blackjack payout",
 			payout,
 			"Player blackjack. Payout: " .. payout .. " won"
 		)
@@ -381,11 +416,39 @@ function Session.reset(session)
 	session.state = Session.State.START
 	session.result = nil
 	session.resultReason = nil
+	session.payoutItems = {}
+	session.payoutTotal = 0
 	session.bet = Session.DEFAULT_BET
 	session.deck = nil
 	session.hasOneEyedJackEvent = false
 	session.player = Player.new(Session.PLAYER_STARTING_MONEY)
 	session.dealer = Dealer.new(Session.DEALER_STARTING_MONEY)
+end
+
+function Session.getCurrentPayoutPreview(session)
+	if session.state ~= Session.State.PLAYER_TURN then
+		return nil
+	end
+
+	if Session.canCashOutCharlie(session) then
+		local cardCount = #session.player.hand
+		local payout = Session.CHARLIE_PAYOUT_BY_COUNT[cardCount]
+		local reason = "Five Card Charlie"
+
+		if cardCount == 6 then
+			reason = "Six Card Charlie"
+		end
+
+		return createWinBreakdown(session, reason, session.bet * payout, reason)
+	elseif Session.canEvenMoney(session) then
+		return createWinBreakdown(session, "Even money", session.bet, "Player took even money")
+	elseif isBlackjack(session.player.hand) then
+		local payout = getBlackjackPayout(session)
+
+		return createWinBreakdown(session, "Blackjack payout", payout, "Player blackjack")
+	end
+
+	return createWinBreakdown(session, "Base win", session.bet, "Projected win")
 end
 
 return Session
