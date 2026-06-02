@@ -118,7 +118,19 @@ local function drawChipStack(value, x, y, count)
 	end
 end
 
-local function drawChipGroups(chips, title, y, width, selectedValue)
+local function getFlyingChipCount(groupName, value)
+	local count = 0
+
+	for _, flyingChip in ipairs(flyingChips) do
+		if flyingChip.targetGroup == groupName and flyingChip.value == value then
+			count = count + 1
+		end
+	end
+
+	return count
+end
+
+local function drawChipGroups(chips, title, y, width, selectedValue, groupName)
 	local startX = getChipLayoutStartX(width)
 
 	love.graphics.setColor(1, 1, 1)
@@ -126,7 +138,7 @@ local function drawChipGroups(chips, title, y, width, selectedValue)
 
 	for index, denomination in ipairs(Chip.DENOMINATIONS) do
 		local value = denomination.value
-		local count = chips[value] or 0
+		local count = math.max((chips[value] or 0) - getFlyingChipCount(groupName, value), 0)
 		local columnX = startX + (index - 1) * CHIP_COLUMN_WIDTH
 		local stackCount = math.ceil(count / CHIP_STACK_SIZE)
 
@@ -148,23 +160,29 @@ local function drawChipGroups(chips, title, y, width, selectedValue)
 	end
 end
 
-local function addFlyingChip(value, fromX, fromY, toX, toY)
+local function addFlyingChip(value, fromX, fromY, toX, toY, targetGroup)
 	table.insert(flyingChips, {
 		value = value,
 		fromX = fromX,
 		fromY = fromY,
 		toX = toX,
 		toY = toY,
+		targetGroup = targetGroup,
 		elapsed = 0,
 		duration = CHIP_ANIMATION_DURATION,
 	})
 end
 
+local function easeOutQuad(t)
+	return 1 - (1 - t) * (1 - t)
+end
+
 local function drawFlyingChips()
 	for _, flyingChip in ipairs(flyingChips) do
 		local progress = math.min(flyingChip.elapsed / flyingChip.duration, 1)
-		local x = flyingChip.fromX + (flyingChip.toX - flyingChip.fromX) * progress
-		local y = flyingChip.fromY + (flyingChip.toY - flyingChip.fromY) * progress
+		local easedProgress = easeOutQuad(progress)
+		local x = flyingChip.fromX + (flyingChip.toX - flyingChip.fromX) * easedProgress
+		local y = flyingChip.fromY + (flyingChip.toY - flyingChip.fromY) * easedProgress
 
 		drawChipImage(flyingChip.value, x, y)
 	end
@@ -179,8 +197,8 @@ local function drawBetting(width, height)
 		width,
 		"center"
 	)
-	drawChipGroups(session.betChips, "Bet Chips", 180, width, session.selectedChipValue)
-	drawChipGroups(session.playerChips, "Player Chips", 384, width, session.selectedChipValue)
+	drawChipGroups(session.betChips, "Bet Chips", 180, width, session.selectedChipValue, "bet")
+	drawChipGroups(session.playerChips, "Player Chips", 384, width, session.selectedChipValue, "player")
 	love.graphics.printf("Arrows: Select  Space: Bet  Shift+Space: Take Back  U/D: Swap Mode  S: Swap  Enter: Deal", 0, height - 28, width, "center")
 	drawFlyingChips()
 end
@@ -368,10 +386,10 @@ local function keyPressedBetting(key)
 
 		if love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift") then
 			if Session.reclaimSelectedChip(session) then
-				addFlyingChip(session.selectedChipValue, chipX, 180, chipX, 384)
+				addFlyingChip(session.selectedChipValue, chipX, 180, chipX, 384, "player")
 			end
 		elseif Session.placeSelectedChip(session) then
-			addFlyingChip(session.selectedChipValue, chipX, 384, chipX, 180)
+			addFlyingChip(session.selectedChipValue, chipX, 384, chipX, 180, "bet")
 		end
 	elseif key == "u" then
 		Session.setChipSwapMode(session, "up")
